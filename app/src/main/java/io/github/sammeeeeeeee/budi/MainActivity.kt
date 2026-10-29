@@ -1,7 +1,6 @@
 package io.github.sammeeeeeeee.budi
 
 import android.Manifest.permission.BLUETOOTH_CONNECT
-import android.Manifest.permission.POST_NOTIFICATIONS
 import android.app.Activity
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
@@ -15,19 +14,14 @@ import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
-import io.github.sammeeeeeeee.budi.BudsService.Link
 import rikka.shizuku.Shizuku
 
 class MainActivity : Activity() {
 
-    private val refresh = { render() }
-    private val onShizuku = Shizuku.OnBinderReceivedListener { render() }
-    private val onShizukuPermission = Shizuku.OnRequestPermissionResultListener { _, _ -> render() }
-
-    private var report: Int? = null
-
-    private val active
-        get() = BudsService.status.link.let { it == Link.CONNECTING || it == Link.CONNECTED }
+    /** What the follower reports: null when it isn't running, -1 before it has seen a mode. */
+    private var followed: Int? = null
+    private val onShizuku = Shizuku.OnBinderReceivedListener { refresh() }
+    private val onShizukuPermission = Shizuku.OnRequestPermissionResultListener { _, _ -> refresh() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,23 +38,26 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        BudsService.listeners += refresh
+        refresh()
+    }
+
+    /** Asks the follower what it sees, and starts it if the buds were connected before Budi was set up. */
+    private fun refresh() {
         render()
-        startIfConnected()
+        if (!StatusBar.shizukuReady) return
+        Follow.mode(this) { mode ->
+            followed = mode
+            if (!isDestroyed) render()
+            if (mode == null) startIfConnected()
+        }
     }
 
-    override fun onPause() {
-        BudsService.listeners -= refresh
-        super.onPause()
-    }
-
-    /** Covers buds that were already connected before Budi was set up. */
     private fun startIfConnected() {
-        if (active || !granted(BLUETOOTH_CONNECT) || Buds.samsungManager(this) != null) return
+        if (!granted(BLUETOOTH_CONNECT) || Buds.samsungPlugins(this).isEmpty()) return
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter ?: return
         adapter.getProfileProxy(applicationContext, object : BluetoothProfile.ServiceListener {
             override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
-                proxy.connectedDevices.firstOrNull(Buds::isBuds)?.let { BudsService.start(applicationContext, it) }
+                if (proxy.connectedDevices.any(Buds::isBuds)) BudsService.connected(applicationContext)
                 adapter.closeProfileProxy(profile, proxy)
             }
 
@@ -69,45 +66,39 @@ class MainActivity : Activity() {
     }
 
     private fun render() {
-        val status = BudsService.status
-        val mode = status.mode
-        val manager = Buds.samsungManager(this)
+        val mode = followed?.let(NoiseMode::of)
+        val plugin = Buds.samsungPlugins(this).isNotEmpty()
 
-        findViewById<ImageView>(R.id.mode_icon).setImageResource(mode?.icon ?: R.drawable.ic_noise_unknown)
+        val icon = findViewById<ImageView>(R.id.mode_icon)
+        if (mode != null) icon.setImageDrawable(Icons.drawable(this, mode)) else icon.setImageResource(R.drawable.ic_noise_unknown)
         findViewById<TextView>(R.id.mode_label).setText(
             when {
                 mode != null -> mode.label
-                manager != null -> R.string.status_blocked
-                status.link == Link.CONNECTING -> R.string.status_connecting
-                status.link == Link.CONNECTED -> R.string.status_connected
-                status.link == Link.FAILED -> R.string.status_failed
+                followed != null -> R.string.status_waiting
+                !plugin -> R.string.status_no_plugin
                 else -> R.string.status_idle
             }
         )
-        findViewById<TextView>(R.id.mode_detail).text = when {
-            active -> status.device
-            manager != null -> null
-            status.link == Link.FAILED -> getText(R.string.status_failed_detail)
-            else -> getText(R.string.status_idle_detail)
-        }
+        findViewById<TextView>(R.id.mode_detail).setText(
+            when {
+                mode != null -> R.string.status_following
+                followed != null -> R.string.status_waiting_detail
+                !plugin -> R.string.status_no_plugin_detail
+                else -> R.string.status_idle_detail
+            }
+        )
 
-        permissionRow(R.id.row_bluetooth, R.string.row_bluetooth, R.string.row_bluetooth_summary, BLUETOOTH_CONNECT)
-        permissionRow(R.id.row_notifications, R.string.row_notifications, R.string.row_notifications_summary, POST_NOTIFICATIONS)
-
-        if (getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)) {
-            row(R.id.row_battery, R.string.row_battery, R.string.unrestricted)
+        if (granted(BLUETOOTH_CONNECT)) {
+            row(R.id.row_bluetooth, R.string.row_bluetooth, R.string.allowed)
         } else {
-            row(R.id.row_battery, R.string.row_battery, R.string.row_battery_summary, R.string.allow) {
-                startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+            row(R.id.row_bluetooth, R.string.row_bluetooth, R.string.row_bluetooth_summary, R.string.allow) {
+                requestPermissions(arrayOf(BLUETOOTH_CONNECT), 0)
             }
         }
 
         val shizukuApp = packageManager.getLaunchIntentForPackage(SHIZUKU)
         when {
-            StatusIcon.ready -> {
-                if (!active) StatusIcon.hide() // clears an icon left behind if Budi was killed
-                row(R.id.row_shizuku, R.string.row_shizuku, R.string.row_shizuku_ready)
-            }
+            StatusBar.shizukuReady -> row(R.id.row_shizuku, R.string.row_shizuku, R.string.allowed)
             Shizuku.pingBinder() -> row(R.id.row_shizuku, R.string.row_shizuku, R.string.row_shizuku_permission, R.string.allow) {
                 Shizuku.requestPermission(0)
             }
@@ -119,58 +110,22 @@ class MainActivity : Activity() {
             }
         }
 
-        findViewById<View>(R.id.manager_card).visibility = if (manager == null) View.GONE else View.VISIBLE
-        if (manager != null) {
-            val label = packageManager.getApplicationLabel(packageManager.getApplicationInfo(manager, 0))
-            row(R.id.row_manager, getString(R.string.row_manager, label), getText(R.string.row_manager_summary), R.string.open) {
-                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$manager")))
-            }
-            when {
-                report == R.string.diagnostics_running ->
-                    row(R.id.row_diagnostics, R.string.diagnostics, R.string.diagnostics_running)
-                !StatusIcon.ready -> row(R.id.row_diagnostics, R.string.diagnostics, R.string.diagnostics_needs_shizuku)
-                else -> row(R.id.row_diagnostics, R.string.diagnostics, report ?: R.string.diagnostics_summary, R.string.run) {
-                    runDiagnostics(manager)
-                }
-            }
-        }
-    }
-
-    private fun runDiagnostics(manager: String) {
-        report = R.string.diagnostics_running
-        render()
-        Diagnostics.run(this, manager) { files ->
-            report = if (files.isEmpty()) R.string.diagnostics_failed else R.string.diagnostics_saved
-            if (isDestroyed) return@run
-            render()
-            if (files.isNotEmpty()) {
-                val send = Intent(Intent.ACTION_SEND_MULTIPLE)
-                    .setType("*/*")
-                    .putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(files))
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                startActivity(Intent.createChooser(send, null))
+        if (getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)) {
+            row(R.id.row_battery, R.string.row_battery, R.string.unrestricted)
+        } else {
+            row(R.id.row_battery, R.string.row_battery, R.string.row_battery_summary, R.string.allow) {
+                startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
             }
         }
     }
 
     private fun granted(permission: String) = checkSelfPermission(permission) == PERMISSION_GRANTED
 
-    private fun permissionRow(id: Int, title: Int, summary: Int, permission: String) {
-        if (granted(permission)) {
-            row(id, title, R.string.allowed)
-        } else {
-            row(id, title, summary, R.string.allow) { requestPermissions(arrayOf(permission), 0) }
-        }
-    }
-
-    private fun row(id: Int, title: Int, summary: Int, action: Int? = null, onClick: () -> Unit = {}) =
-        row(id, getText(title), getText(summary), action, onClick)
-
     /** Fills a settings row. The button only shows when there's something to do. */
-    private fun row(id: Int, title: CharSequence, summary: CharSequence, action: Int? = null, onClick: () -> Unit = {}) {
+    private fun row(id: Int, title: Int, summary: Int, action: Int? = null, onClick: () -> Unit = {}) {
         val row = findViewById<View>(id)
-        row.findViewById<TextView>(R.id.title).text = title
-        row.findViewById<TextView>(R.id.summary).text = summary
+        row.findViewById<TextView>(R.id.title).setText(title)
+        row.findViewById<TextView>(R.id.summary).setText(summary)
         row.findViewById<Button>(R.id.action).run {
             visibility = if (action == null) View.GONE else View.VISIBLE
             if (action != null) setText(action)

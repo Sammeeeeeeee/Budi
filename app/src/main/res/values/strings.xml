@@ -9,42 +9,26 @@
 
     <string name="status_idle">No buds connected</string>
     <string name="status_idle_detail">Budi starts when your Galaxy Buds connect.</string>
-    <string name="status_connecting">Connecting…</string>
-    <string name="status_connected">Connected</string>
-    <string name="status_blocked">Samsung\'s buds manager is on</string>
-    <string name="status_failed">Couldn\'t reach your buds</string>
-    <string name="status_failed_detail">Budi will try again when they next connect.</string>
+    <string name="status_waiting">Waiting for your buds</string>
+    <string name="status_waiting_detail">The icon appears once they report their mode.</string>
+    <string name="status_following">Shown in your status bar</string>
+    <string name="status_no_plugin">Samsung\'s buds plugin isn\'t installed</string>
+    <string name="status_no_plugin_detail">Budi reads the mode from it. Connect your buds to this phone first.</string>
 
     <string name="row_bluetooth">Nearby devices</string>
-    <string name="row_bluetooth_summary">Needed to read your buds.</string>
+    <string name="row_bluetooth_summary">Lets Budi notice when your buds connect.</string>
     <string name="row_shizuku">Shizuku</string>
-    <string name="row_shizuku_ready">The icon sits next to Wi‑Fi and battery.</string>
-    <string name="row_shizuku_permission">Allow Budi to put its icon next to Wi‑Fi and battery.</string>
-    <string name="row_shizuku_stopped">Not running. Start it to put the icon next to Wi‑Fi and battery.</string>
-    <string name="row_shizuku_missing">Install Shizuku to put the icon next to Wi‑Fi and battery.</string>
-    <string name="row_notifications">Notifications</string>
-    <string name="row_notifications_summary">Shows the mode as a notification icon when Shizuku isn\'t running.</string>
+    <string name="row_shizuku_permission">Allow Budi to read your buds\' mode and show the icon.</string>
+    <string name="row_shizuku_stopped">Not running. Start it so Budi can show the icon.</string>
+    <string name="row_shizuku_missing">Install Shizuku so Budi can show the icon.</string>
     <string name="row_battery">Battery</string>
     <string name="row_battery_summary">Let Budi start by itself when your buds connect.</string>
-    <string name="row_manager">%1$s is on</string>
-    <string name="row_manager_summary">It holds your buds\' control channel, so Budi can\'t read them. Turn it off to use Budi.</string>
-
-    <string name="diagnostics">Diagnostic report</string>
-    <string name="diagnostics_summary">Tap Run, then switch noise modes on your buds a few times while it records, for about half a minute. It saves a report and icon sheets to Downloads and uploads nothing.</string>
-    <string name="diagnostics_needs_shizuku">Needs Shizuku.</string>
-    <string name="diagnostics_running">Recording. Switch noise modes on your buds a few times now.</string>
-    <string name="diagnostics_saved">Saved to Downloads.</string>
-    <string name="diagnostics_failed">Couldn\'t collect the report.</string>
 
     <string name="allow">Allow</string>
     <string name="allowed">Allowed</string>
     <string name="unrestricted">Unrestricted</string>
     <string name="open">Open</string>
     <string name="get">Get</string>
-    <string name="run">Run</string>
 
-    <string name="channel_status">Noise control</string>
-    <string name="channel_status_description">Shows the noise control mode when the status bar icon isn\'t available.</string>
-    <string name="channel_service">Background connection</string>
-    <string name="channel_service_description">Keeps Budi connected to your buds. Safe to turn off while the status bar icon works.</string>
+    <string name="channel_service">Buds connection</string>
 </resources>

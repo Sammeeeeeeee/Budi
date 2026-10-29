@@ -2,7 +2,10 @@ package io.github.sammeeeeeeee.budi
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 class BudsTest {
 
@@ -14,6 +17,8 @@ class BudsTest {
         chunks.forEach { reader.feed(it, it.size) }
         return frames
     }
+
+    private fun mode(hex: String) = read(bytes(hex)).single().let { (id, payload) -> Buds.noiseMode(id, payload) }
 
     // Extended status frame quoted in GalaxyBudsClient's Crc16.cs (CRC 0xF30F, sent little-endian).
     private val extendedStatus = bytes("FD 11 00 61 02 00 4B 5F 01 00 00 00 01 05 00 02 00 13 0F F3 DD")
@@ -30,8 +35,19 @@ class BudsTest {
 
     @Test
     fun decodesNoiseControlsUpdate() {
-        val (id, payload) = read(adaptive).single()
-        assertEquals(NoiseMode.ADAPTIVE, Buds.noiseMode(id, payload))
+        assertEquals(NoiseMode.ADAPTIVE, mode("FD 04 00 77 03 AD A1 DD"))
+    }
+
+    @Test
+    fun decodesAcknowledgedModeSetFromThePhone() {
+        assertEquals(NoiseMode.AMBIENT, mode("FD 05 50 42 78 02 7F D2 DD"))
+    }
+
+    @Test
+    fun ignoresOtherAcknowledgements() {
+        // Captured from a Galaxy Buds3 Pro on One UI 9: Samsung's plugin setting 360 Audio and the EQ.
+        assertNull(mode("FD 06 50 42 7C 01 00 AC 1D DD"))
+        assertNull(mode("FD 05 90 42 86 01 D2 D2 DD"))
     }
 
     @Test
@@ -44,8 +60,25 @@ class BudsTest {
 
     @Test
     fun ignoresOtherMessagesAndUnknownModes() {
-        assertEquals(null, Buds.noiseMode(0x60, byteArrayOf(1)))
-        assertEquals(null, Buds.noiseMode(0x77, byteArrayOf(9)))
-        assertEquals(null, Buds.noiseMode(0x61, ByteArray(5)))
+        assertNull(Buds.noiseMode(0x60, byteArrayOf(1)))
+        assertNull(Buds.noiseMode(0x77, byteArrayOf(9)))
+        assertNull(Buds.noiseMode(0x61, ByteArray(5)))
+    }
+
+    @Test
+    fun readsFramesFromPluginLogLines() {
+        assertArrayEquals(bytes("FD 06 50 42 7C 01 00 AC 1D DD"), Buds.received("RECV++ : FD 06 50 42 7C 01 00 AC 1D DD "))
+        assertNull(Buds.received("onSppMessage() : 42"))
+    }
+
+    @Test
+    fun parsesLogdEntries() {
+        val payload = byteArrayOf(4) + "Paran_SppRecvThread".toByteArray() + 0 + "RECV++ : FD 04 00 77 03 AD A1 DD ".toByteArray() + 0
+        val entry = ByteBuffer.allocate(28 + payload.size).order(ByteOrder.LITTLE_ENDIAN)
+            .putShort(payload.size.toShort()).putShort(28).putInt(28093).putInt(5725)
+            .putInt(0).putInt(0).putInt(0).putInt(10626).put(payload).array()
+        val message = Logd.message(entry, entry.size)
+        assertEquals("RECV++ : FD 04 00 77 03 AD A1 DD ", message)
+        assertEquals(NoiseMode.ADAPTIVE, read(Buds.received(message!!)!!).single().let { Buds.noiseMode(it.first, it.second) })
     }
 }

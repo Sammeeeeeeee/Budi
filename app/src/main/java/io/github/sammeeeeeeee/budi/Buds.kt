@@ -8,21 +8,26 @@ import java.util.UUID
 /**
  * Galaxy Buds serial protocol, as reverse-engineered by GalaxyBudsClient
  * (github.com/timschneeb/GalaxyBudsClient). Frame: FD [size:2 LE] [id] [payload] [crc16:2 LE] DD,
- * where size covers id + payload + crc.
+ * where size covers id + payload + crc. Budi never opens the link itself: Samsung's plugin logs
+ * every frame it receives ("RECV++ : FD … DD"), and Budi reads those.
  */
 object Buds {
-    val SPP_UUID: UUID = UUID.fromString("2e73a4ad-332d-41fc-90e2-16bef06523f2")
+    private val SPP_UUID: UUID = UUID.fromString("2e73a4ad-332d-41fc-90e2-16bef06523f2")
 
     private const val SOM = 0xFD
     private const val EOM = 0xDD
+    private const val MSG_ACK = 0x42
     private const val MSG_EXTENDED_STATUS = 0x61
     private const val MSG_NOISE_CONTROLS_UPDATE = 0x77
+    private const val MSG_NOISE_CONTROLS = 0x78
 
-    /** Samsung's companion plugins. While one is enabled it owns the buds' control channel. */
-    private val SAMSUNG_MANAGERS = listOf(
-        "com.samsung.accessory.budsunitemgr", // Buds4 and newer
+    private val RECEIVED = Regex("""RECV\+\+ ?: ?((?:[0-9A-Fa-f]{2} ?)+)""")
+
+    /** Samsung's buds plugins: whichever owns the buds' link logs the frames it receives. */
+    private val SAMSUNG_PLUGINS = listOf(
         "com.samsung.accessory.paranmgr", // Buds3 Pro
         "com.samsung.accessory.jellymgr", // Buds3
+        "com.samsung.accessory.budsunitemgr", // Buds4 and newer
         "com.samsung.accessory.zenithmgr",
         "com.samsung.accessory.berrymgr",
         "com.samsung.accessory.pearlmgr",
@@ -37,8 +42,8 @@ object Buds {
         false
     }
 
-    /** The enabled Samsung manager that would hold the channel, if any. */
-    fun samsungManager(context: Context): String? = SAMSUNG_MANAGERS.firstOrNull { pkg ->
+    /** The installed, enabled Samsung plugins. */
+    fun samsungPlugins(context: Context): List<String> = SAMSUNG_PLUGINS.filter { pkg ->
         try {
             context.packageManager.getApplicationInfo(pkg, 0).enabled
         } catch (e: PackageManager.NameNotFoundException) {
@@ -46,9 +51,19 @@ object Buds {
         }
     }
 
+    /** The bytes in a plugin's "RECV++ : FD 06 50 … DD" log line, or null for any other line. */
+    fun received(message: String): ByteArray? =
+        RECEIVED.find(message)?.groupValues?.get(1)?.trim()?.split(' ')?.map { it.toInt(16).toByte() }?.toByteArray()
+
+    /**
+     * The noise mode a frame reports: the extended status on connect, an update after a change
+     * on the buds, or the buds' acknowledgement of a mode set from the phone ([MSG_ACK] echoes
+     * the request's id, then its value).
+     */
     fun noiseMode(id: Int, payload: ByteArray): NoiseMode? = when (id) {
         MSG_EXTENDED_STATUS -> payload.getOrNull(12)
         MSG_NOISE_CONTROLS_UPDATE -> payload.getOrNull(0)
+        MSG_ACK -> payload.getOrNull(1)?.takeIf { payload[0].toInt() == MSG_NOISE_CONTROLS }
         else -> null
     }?.let { NoiseMode.of(it.toInt()) }
 

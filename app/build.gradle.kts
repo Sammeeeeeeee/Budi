@@ -10,8 +10,8 @@ android {
         applicationId = "io.github.sammeeeeeeee.budi"
         minSdk = 33
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "0.1"
     }
 
     buildTypes {
