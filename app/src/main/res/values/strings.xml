@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Budi</string>
+
+    <string name="mode_off">Off</string>
+    <string name="mode_anc">Active noise canceling</string>
+    <string name="mode_ambient">Ambient sound</string>
+    <string name="mode_adaptive">Adaptive</string>
+
+    <string name="status_idle">Not running</string>
+    <string name="status_idle_detail">Budi starts when your Galaxy Buds connect.</string>
+    <string name="status_waiting">Waiting for your buds</string>
+    <string name="status_waiting_detail">The icon appears once they report their mode.</string>
+    <string name="status_following">In your status bar</string>
+    <string name="status_no_plugin">Samsung\'s buds plugin isn\'t installed</string>
+    <string name="status_no_plugin_detail">Budi reads the mode from it. Connect your buds to this phone first.</string>
+
+    <string name="row_bluetooth">Nearby devices</string>
+    <string name="row_bluetooth_summary">Lets Budi notice when your buds connect.</string>
+    <string name="row_overlay">Display over other apps</string>
+    <string name="row_overlay_summary">Lets Budi draw its icon in the status bar.</string>
+    <string name="row_shizuku">Shizuku</string>
+    <string name="row_shizuku_permission">Allow Budi to read your buds\' mode and show the icon.</string>
+    <string name="row_shizuku_stopped">Not running. Start it so Budi can show the icon.</string>
+    <string name="row_shizuku_missing">Install Shizuku so Budi can show the icon.</string>
+    <string name="row_battery">Battery</string>
+    <string name="row_battery_summary">Let Budi start by itself when your buds connect.</string>
+    <string name="row_report">Report a problem</string>
+    <string name="row_report_summary">Copies what Budi has seen lately.</string>
+
+    <string name="allow">Allow</string>
+    <string name="allowed">Allowed</string>
+    <string name="unrestricted">Unrestricted</string>
+    <string name="open">Open</string>
+    <string name="get">Get</string>
+    <string name="copy">Copy</string>
+
+    <string name="channel_service">Buds connection</string>
+</resources>

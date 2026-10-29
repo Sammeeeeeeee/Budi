@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to create, e.g. v0.1
+        required: true
+      notes:
+        description: Release notes
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # a pushed tag's message becomes the release notes
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install Android platform 37
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" > /dev/null
+
+      - name: Test and build
+        run: ./gradlew --no-daemon testDebugUnitTest assembleRelease
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          apk="Budi-$TAG.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$apk"
+          if [ -n "$NOTES" ]; then
+            gh release create "$TAG" "$apk" --target "$GITHUB_SHA" --title "Budi $TAG" --notes "$NOTES"
+          else
+            gh release create "$TAG" "$apk" --title "Budi $TAG" --notes-from-tag
+          fi
