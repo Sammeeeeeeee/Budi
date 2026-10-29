@@ -33,4 +33,4 @@ You need a Samsung phone with Samsung's buds plugin, which installs when you pai
 ./gradlew assembleRelease
 ```
 
-Needs JDK 17+ and Android SDK platform 37. Pushing a `v*` tag builds the APK and publishes it as a GitHub release.
+Needs JDK 17+ and Android SDK platform 37. Pushing a `v*` tag, or running the Release workflow by hand, builds the APK and publishes it as a GitHub release.

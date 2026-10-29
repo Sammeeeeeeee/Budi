@@ -3,6 +3,14 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to create, e.g. v0.1
+        required: true
+      notes:
+        description: Release notes
+        required: true
 
 permissions:
   contents: write
@@ -13,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # the annotated tag's message becomes the release notes
+          fetch-depth: 0 # a pushed tag's message becomes the release notes
 
       - uses: actions/setup-java@v4
         with:
@@ -29,7 +37,13 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+          NOTES: ${{ inputs.notes }}
         run: |
-          apk="Budi-${GITHUB_REF_NAME}.apk"
+          apk="Budi-$TAG.apk"
           cp app/build/outputs/apk/release/app-release.apk "$apk"
-          gh release create "$GITHUB_REF_NAME" "$apk" --title "Budi ${GITHUB_REF_NAME}" --notes-from-tag
+          if [ -n "$NOTES" ]; then
+            gh release create "$TAG" "$apk" --target "$GITHUB_SHA" --title "Budi $TAG" --notes "$NOTES"
+          else
+            gh release create "$TAG" "$apk" --title "Budi $TAG" --notes-from-tag
+          fi
