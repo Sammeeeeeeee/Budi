@@ -10,8 +10,20 @@ android {
         applicationId = "io.github.sammeeeeeeee.budi"
         minSdk = 33
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.1"
+        versionCode = 5
+        versionName = "0.2"
+    }
+
+    signingConfigs {
+        // CI signs with the repository's own key when it has one, so a new version installs over the old one.
+        System.getenv("BUDI_KEYSTORE")?.let { keystore ->
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("BUDI_KEYSTORE_PASSWORD")
+                keyAlias = "budi"
+                keyPassword = System.getenv("BUDI_KEYSTORE_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -19,7 +31,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

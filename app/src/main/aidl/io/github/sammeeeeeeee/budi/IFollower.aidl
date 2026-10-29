@@ -6,4 +6,6 @@ interface IFollower {
     void follow(in String[] plugins, String iconPackage, in int[] icons, in String[] labels) = 1;
 
     int mode() = 2;
+
+    String trace() = 3;
 }

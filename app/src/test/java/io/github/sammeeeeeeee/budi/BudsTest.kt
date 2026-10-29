@@ -18,7 +18,9 @@ class BudsTest {
         return frames
     }
 
-    private fun mode(hex: String) = read(bytes(hex)).single().let { (id, payload) -> Buds.noiseMode(id, payload) }
+    private fun reported(hex: String) = read(bytes(hex)).single().let { (id, payload) -> Buds.reported(id, payload) }
+
+    private fun requested(hex: String) = read(bytes(hex)).single().let { (id, payload) -> Buds.requested(id, payload) }
 
     // Extended status frame quoted in GalaxyBudsClient's Crc16.cs (CRC 0xF30F, sent little-endian).
     private val extendedStatus = bytes("FD 11 00 61 02 00 4B 5F 01 00 00 00 01 05 00 02 00 13 0F F3 DD")
@@ -30,24 +32,33 @@ class BudsTest {
         assertEquals(1, frames.size)
         assertEquals(0x61, frames[0].first)
         assertArrayEquals(extendedStatus.copyOfRange(4, 18), frames[0].second)
-        assertEquals(NoiseMode.OFF, Buds.noiseMode(frames[0].first, frames[0].second))
+        assertEquals(NoiseMode.OFF, Buds.reported(frames[0].first, frames[0].second))
     }
 
     @Test
     fun decodesNoiseControlsUpdate() {
-        assertEquals(NoiseMode.ADAPTIVE, mode("FD 04 00 77 03 AD A1 DD"))
+        assertEquals(NoiseMode.ADAPTIVE, reported("FD 04 00 77 03 AD A1 DD"))
     }
 
     @Test
     fun decodesAcknowledgedModeSetFromThePhone() {
-        assertEquals(NoiseMode.AMBIENT, mode("FD 05 50 42 78 02 7F D2 DD"))
+        assertEquals(NoiseMode.AMBIENT, reported("FD 05 50 42 78 02 7F D2 DD"))
+        assertEquals(NoiseMode.ADAPTIVE, reported("FD 05 50 42 78 03 5E C2 DD"))
+    }
+
+    @Test
+    fun decodesModeSetByThePlugin() {
+        assertEquals(NoiseMode.ADAPTIVE, requested("FD 04 00 78 03 93 B1 DD"))
+        // Captured from a Galaxy Buds3 Pro on One UI 9: Samsung's plugin setting the ANC level.
+        assertNull(requested("FD 04 00 83 04 4F 0E DD"))
     }
 
     @Test
     fun ignoresOtherAcknowledgements() {
-        // Captured from a Galaxy Buds3 Pro on One UI 9: Samsung's plugin setting 360 Audio and the EQ.
-        assertNull(mode("FD 06 50 42 7C 01 00 AC 1D DD"))
-        assertNull(mode("FD 05 90 42 86 01 D2 D2 DD"))
+        // Captured from a Galaxy Buds3 Pro on One UI 9: Samsung's plugin setting 360 Audio, the EQ and the ANC level.
+        assertNull(reported("FD 06 50 42 7C 01 00 AC 1D DD"))
+        assertNull(reported("FD 05 90 42 86 01 D2 D2 DD"))
+        assertNull(reported("FD 05 90 42 83 04 82 7D DD"))
     }
 
     @Test
@@ -55,20 +66,30 @@ class BudsTest {
         val corrupt = adaptive.copyOf().also { it[4] = 0x01 }
         val frames = read(bytes("00 DD 12"), corrupt, adaptive, adaptive)
         assertEquals(2, frames.size)
-        frames.forEach { assertEquals(NoiseMode.ADAPTIVE, Buds.noiseMode(it.first, it.second)) }
+        frames.forEach { assertEquals(NoiseMode.ADAPTIVE, Buds.reported(it.first, it.second)) }
+    }
+
+    @Test
+    fun dropsAFrameCutShortOnceACompleteOneFollows() {
+        // A logged line that ends mid-frame, claiming far more bytes than ever come.
+        val frames = read(bytes("FD FF 03 61 02 00"), adaptive)
+        assertEquals(NoiseMode.ADAPTIVE, frames.single().let { Buds.reported(it.first, it.second) })
     }
 
     @Test
     fun ignoresOtherMessagesAndUnknownModes() {
-        assertNull(Buds.noiseMode(0x60, byteArrayOf(1)))
-        assertNull(Buds.noiseMode(0x77, byteArrayOf(9)))
-        assertNull(Buds.noiseMode(0x61, ByteArray(5)))
+        assertNull(Buds.reported(0x60, byteArrayOf(1)))
+        assertNull(Buds.reported(0x77, byteArrayOf(9)))
+        assertNull(Buds.reported(0x61, ByteArray(5)))
+        assertNull(Buds.requested(0x78, ByteArray(0)))
     }
 
     @Test
     fun readsFramesFromPluginLogLines() {
         assertArrayEquals(bytes("FD 06 50 42 7C 01 00 AC 1D DD"), Buds.received("RECV++ : FD 06 50 42 7C 01 00 AC 1D DD "))
-        assertNull(Buds.received("onSppMessage() : 42"))
+        assertArrayEquals(bytes("FD 04 00 83 04 4F 0E DD"), Buds.sent("SENT-- : FD 04 00 83 04 4F 0E DD "))
+        assertNull(Buds.received("SENT-- : FD 04 00 83 04 4F 0E DD "))
+        assertNull(Buds.sent("onSppMessage() : 42"))
     }
 
     @Test
@@ -76,9 +97,10 @@ class BudsTest {
         val payload = byteArrayOf(4) + "Paran_SppRecvThread".toByteArray() + 0 + "RECV++ : FD 04 00 77 03 AD A1 DD ".toByteArray() + 0
         val entry = ByteBuffer.allocate(28 + payload.size).order(ByteOrder.LITTLE_ENDIAN)
             .putShort(payload.size.toShort()).putShort(28).putInt(28093).putInt(5725)
-            .putInt(0).putInt(0).putInt(0).putInt(10626).put(payload).array()
-        val message = Logd.message(entry, entry.size)
-        assertEquals("RECV++ : FD 04 00 77 03 AD A1 DD ", message)
-        assertEquals(NoiseMode.ADAPTIVE, read(Buds.received(message!!)!!).single().let { Buds.noiseMode(it.first, it.second) })
+            .putInt(1_793_273_757).putInt(711_000_000).putInt(0).putInt(10626).put(payload).array()
+        val parsed = Logd.entry(entry, entry.size)!!
+        assertEquals(1_793_273_757_711L, parsed.time)
+        assertEquals("RECV++ : FD 04 00 77 03 AD A1 DD ", parsed.message)
+        assertEquals(NoiseMode.ADAPTIVE, read(Buds.received(parsed.message)!!).single().let { Buds.reported(it.first, it.second) })
     }
 }

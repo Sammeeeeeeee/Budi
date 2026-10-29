@@ -1,15 +1,18 @@
 package io.github.sammeeeeeeee.budi
 
+import android.Manifest
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.pm.PackageManager
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 import java.util.UUID
 
 /**
  * Galaxy Buds serial protocol, as reverse-engineered by GalaxyBudsClient
  * (github.com/timschneeb/GalaxyBudsClient). Frame: FD [size:2 LE] [id] [payload] [crc16:2 LE] DD,
  * where size covers id + payload + crc. Budi never opens the link itself: Samsung's plugin logs
- * every frame it receives ("RECV++ : FD … DD"), and Budi reads those.
+ * every frame it receives ("RECV++ : FD … DD") and sends ("SENT-- : FD … DD"), and Budi reads those.
  */
 object Buds {
     private val SPP_UUID: UUID = UUID.fromString("2e73a4ad-332d-41fc-90e2-16bef06523f2")
@@ -22,8 +25,9 @@ object Buds {
     private const val MSG_NOISE_CONTROLS = 0x78
 
     private val RECEIVED = Regex("""RECV\+\+ ?: ?((?:[0-9A-Fa-f]{2} ?)+)""")
+    private val SENT = Regex("""SENT-- ?: ?((?:[0-9A-Fa-f]{2} ?)+)""")
 
-    /** Samsung's buds plugins: whichever owns the buds' link logs the frames it receives. */
+    /** Samsung's buds plugins: whichever owns the buds' link logs the frames it exchanges. */
     private val SAMSUNG_PLUGINS = listOf(
         "com.samsung.accessory.paranmgr", // Buds3 Pro
         "com.samsung.accessory.jellymgr", // Buds3
@@ -42,6 +46,19 @@ object Buds {
         false
     }
 
+    /** Whether paired buds are connected, or null if Android won't say. */
+    fun connected(context: Context): Boolean? {
+        if (context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) return null
+        return try {
+            val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
+            HiddenApiBypass.addHiddenApiExemptions("L")
+            val isConnected = BluetoothDevice::class.java.getMethod("isConnected") // a system API
+            adapter?.bondedDevices?.filter(::isBuds)?.any { isConnected.invoke(it) == true }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     /** The installed, enabled Samsung plugins. */
     fun samsungPlugins(context: Context): List<String> = SAMSUNG_PLUGINS.filter { pkg ->
         try {
@@ -52,20 +69,29 @@ object Buds {
     }
 
     /** The bytes in a plugin's "RECV++ : FD 06 50 … DD" log line, or null for any other line. */
-    fun received(message: String): ByteArray? =
-        RECEIVED.find(message)?.groupValues?.get(1)?.trim()?.split(' ')?.map { it.toInt(16).toByte() }?.toByteArray()
+    fun received(message: String): ByteArray? = bytes(RECEIVED, message)
+
+    /** The bytes in a plugin's "SENT-- : FD 04 00 … DD" log line, or null for any other line. */
+    fun sent(message: String): ByteArray? = bytes(SENT, message)
+
+    private fun bytes(line: Regex, message: String): ByteArray? = line.find(message)?.groupValues?.get(1)
+        ?.replace(" ", "")?.chunked(2)?.map { it.toInt(16).toByte() }?.toByteArray()
 
     /**
-     * The noise mode a frame reports: the extended status on connect, an update after a change
-     * on the buds, or the buds' acknowledgement of a mode set from the phone ([MSG_ACK] echoes
-     * the request's id, then its value).
+     * The noise mode a frame from the buds reports: the extended status on connect, an update
+     * after a change on the buds, or the buds' acknowledgement of a mode set from the phone
+     * ([MSG_ACK] echoes the request's id, then its value).
      */
-    fun noiseMode(id: Int, payload: ByteArray): NoiseMode? = when (id) {
+    fun reported(id: Int, payload: ByteArray): NoiseMode? = when (id) {
         MSG_EXTENDED_STATUS -> payload.getOrNull(12)
         MSG_NOISE_CONTROLS_UPDATE -> payload.getOrNull(0)
         MSG_ACK -> payload.getOrNull(1)?.takeIf { payload[0].toInt() == MSG_NOISE_CONTROLS }
         else -> null
     }?.let { NoiseMode.of(it.toInt()) }
+
+    /** The noise mode a frame from the plugin sets. */
+    fun requested(id: Int, payload: ByteArray): NoiseMode? =
+        payload.getOrNull(0)?.takeIf { id == MSG_NOISE_CONTROLS }?.let { NoiseMode.of(it.toInt()) }
 
     /** CRC-16/XMODEM. */
     fun crc16(data: ByteArray, from: Int, to: Int): Int {
@@ -77,7 +103,10 @@ object Buds {
         return crc and 0xFFFF
     }
 
-    /** Reassembles frames from an RFCOMM stream; skips anything that fails its checksum. */
+    /**
+     * Reassembles frames from a byte stream and skips anything that fails its checksum. A frame cut
+     * short is dropped as soon as a complete one follows it, so it can't hold up the rest.
+     */
     class FrameReader(private val onFrame: (id: Int, payload: ByteArray) -> Unit) {
         private var buf = ByteArray(1024)
         private var len = 0
@@ -91,26 +120,37 @@ object Buds {
             while (true) {
                 while (start < len && u(start) != SOM) start++
                 if (len - start < 3) break
-                val size = (u(start + 1) or (u(start + 2) shl 8)) and 0x3FF
-                if (size < 3) {
-                    start++
-                    continue
-                }
-                val end = start + size + 3 // index of EOM
-                if (end >= len) break
-                val crc = u(end - 2) or (u(end - 1) shl 8)
-                if (u(end) == EOM && crc16(buf, start + 3, end - 2) == crc) {
-                    onFrame(u(start + 3), buf.copyOfRange(start + 4, end - 2))
-                    start = end + 1
-                } else {
-                    start++
+                val end = end(start)
+                when {
+                    end > 0 -> {
+                        onFrame(u(start + 3), buf.copyOfRange(start + 4, end - 2))
+                        start = end + 1
+                    }
+                    end == BAD -> start++
+                    else -> start = (start + 1 until len).firstOrNull { u(it) == SOM && end(it) > 0 } ?: break
                 }
             }
             System.arraycopy(buf, start, buf, 0, len - start)
             len -= start
         }
 
+        /** The index of the EOM of the frame at [start], [BAD] if there isn't one, or [SHORT] if it isn't all here yet. */
+        private fun end(start: Int): Int {
+            if (len - start < 3) return SHORT
+            val size = (u(start + 1) or (u(start + 2) shl 8)) and 0x3FF
+            if (size < 3) return BAD
+            val end = start + size + 3
+            if (end >= len) return SHORT
+            val crc = u(end - 2) or (u(end - 1) shl 8)
+            return if (u(end) == EOM && crc16(buf, start + 3, end - 2) == crc) end else BAD
+        }
+
         private fun u(i: Int) = buf[i].toInt() and 0xFF
+
+        private companion object {
+            const val BAD = -1
+            const val SHORT = -2
+        }
     }
 }
 

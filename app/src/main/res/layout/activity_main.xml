@@ -69,6 +69,10 @@
             <include
                 android:id="@+id/row_battery"
                 layout="@layout/row" />
+
+            <include
+                android:id="@+id/row_report"
+                layout="@layout/row" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

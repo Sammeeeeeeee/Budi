@@ -39,15 +39,15 @@ class BudsService : Service() {
     }
 
     private val main = Handler(Looper.getMainLooper())
-    private val queue = ArrayDeque<String>()
+    private val pending = ArrayDeque<String>()
     private val giveUp = Runnable { stopSelf(lastStart) }
     private val onShizuku = object : Shizuku.OnBinderReceivedListener {
         override fun onBinderReceived() {
             Shizuku.removeBinderReceivedListener(this)
-            next()
+            handle()
         }
     }
-    private var busy = false
+    private var starting = 0
     private var lastStart = 0
 
     override fun onBind(intent: Intent?) = null
@@ -72,10 +72,10 @@ class BudsService : Service() {
             return START_NOT_STICKY
         }
         lastStart = startId
-        intent?.action?.let(queue::addLast)
+        intent?.action?.let(pending::addLast)
         main.removeCallbacks(giveUp)
         main.postDelayed(giveUp, TIMEOUT_MS)
-        if (Shizuku.pingBinder()) next() else Shizuku.addBinderReceivedListener(onShizuku, main)
+        if (Shizuku.pingBinder()) handle() else Shizuku.addBinderReceivedListener(onShizuku, main)
         return START_NOT_STICKY
     }
 
@@ -85,22 +85,27 @@ class BudsService : Service() {
         super.onDestroy()
     }
 
-    /** One action at a time, so a quick connect then disconnect can't leave a follower running. */
-    private fun next() {
-        if (busy) return
-        val action = queue.removeFirstOrNull()
-        if (action == null || !StatusBar.shizukuReady) {
-            stopSelf(lastStart) // a newer start keeps it running
-            return
+    /** In order, so a quick disconnect then connect leaves the follower running. */
+    private fun handle() {
+        val ready = StatusBar.shizukuReady
+        while (pending.isNotEmpty()) {
+            val action = pending.removeFirst()
+            when {
+                !ready -> Unit
+                action == ACTION_CONNECTED -> {
+                    starting++
+                    Follow.start(this, Buds.samsungPlugins(this)) {
+                        starting--
+                        finish()
+                    }
+                }
+                else -> Follow.stop(this)
+            }
         }
-        busy = true
-        val done = {
-            busy = false
-            next()
-        }
-        when (action) {
-            ACTION_CONNECTED -> Follow.start(this, Buds.samsungPlugins(this), done)
-            else -> Follow.stop(this, done)
-        }
+        finish()
+    }
+
+    private fun finish() {
+        if (starting == 0 && pending.isEmpty()) stopSelf(lastStart) // a newer start keeps it running
     }
 }
