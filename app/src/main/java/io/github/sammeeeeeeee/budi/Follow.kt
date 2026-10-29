@@ -4,7 +4,9 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import rikka.shizuku.Shizuku
 
@@ -18,7 +20,9 @@ import rikka.shizuku.Shizuku
 object Follow {
     private const val TAG = "Budi"
 
+    private val main = Handler(Looper.getMainLooper())
     private var follower: IFollower? = null
+    private var watched: IBinder? = null
     private val waiting = mutableListOf<(IFollower?) -> Unit>()
 
     private val connection = object : ServiceConnection {
@@ -58,7 +62,17 @@ object Follow {
         follower = null
         answer(null)
         if (ready) shizuku { Shizuku.unbindUserService(args(context), null, true) }
-        ModeIcon.hide(context)
+        StatusIcon.hide()
+    }
+
+    /** Has the follower drive [icon] from now on. The icon goes if the follower does. */
+    fun watch(context: Context, icon: IStatusIcon) = ask(context, { _: Unit? -> }) { follower ->
+        follower.watch(icon)
+        val binder = follower.asBinder()
+        if (binder != watched) {
+            binder.linkToDeath({ main.post { StatusIcon.hide() } }, 0)
+            watched = binder
+        }
     }
 
     /** The mode the follower last saw: null if it isn't running, -1 if it hasn't seen one yet. */

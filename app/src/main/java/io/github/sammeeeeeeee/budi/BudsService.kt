@@ -72,7 +72,7 @@ class BudsService : Service() {
             return START_NOT_STICKY
         }
         lastStart = startId
-        if (intent?.action == ACTION_DISCONNECTED) ModeIcon.hide(this) // even if Shizuku isn't there to stop the follower
+        if (intent?.action == ACTION_DISCONNECTED) StatusIcon.hide() // even if Shizuku isn't there to stop the follower
         intent?.action?.let(pending::addLast)
         main.removeCallbacks(giveUp)
         main.postDelayed(giveUp, TIMEOUT_MS)

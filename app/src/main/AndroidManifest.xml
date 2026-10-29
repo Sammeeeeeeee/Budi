@@ -4,11 +4,12 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <queries>
         <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="com.android.systemui" />
         <package android:name="com.samsung.accessory.paranmgr" />
         <package android:name="com.samsung.accessory.jellymgr" />
         <package android:name="com.samsung.accessory.budsunitemgr" />
@@ -49,7 +50,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- Only the shell, which the follower runs as, holds this permission. -->
+        <!-- Normal apps can't hold this permission; the shell, which the follower runs as, does. -->
         <receiver
             android:name=".ModeReceiver"
             android:exported="true"

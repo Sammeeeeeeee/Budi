@@ -8,9 +8,11 @@ Budi adds your Galaxy Buds' noise control mode to the status bar: Off, Ambient s
   - the extended status the buds send on connect;
   - the update after a change made on the buds;
   - a mode set from the phone, and the buds' acknowledgement of it.
-- **The icon.** One UI 7 and later show only Wi‑Fi, mobile data and battery on the right of the closed status bar; other indicators appear only in the pulled-down panel ([Sammy Fans](https://www.sammyfans.com/2025/04/16/samsung-explains-why-bluetooth-icon-is-missing-from-one-ui-7-status-bar/)). So Budi's icon is a notification icon, which One UI shows on the left, by the clock. The notification is silent and ongoing, and goes when the buds disconnect. The glyphs are traced from Samsung's `ic_buds3_*` and drawn on the 24 dp status bar icon grid.
-- **Shizuku.** Reading other apps' logs needs the shell user, so the follower runs as a [Shizuku](https://shizuku.rikka.app) user service. It tells Budi's app each new mode with a broadcast only the shell may send.
-- **Background cost.** While the buds are connected there's one small process, blocked on a socket. It wakes when the plugin logs, and at most every 30 s to check the plugin hasn't restarted. There's no wake lock. Budi's app runs for about a second when the buds connect or disconnect, or the mode changes.
+- **The icon.** One UI 7 and later show only Wi‑Fi, mobile data and battery on the right of the closed status bar; other indicators appear only in the pulled-down panel ([Sammy Fans](https://www.sammyfans.com/2025/04/16/samsung-explains-why-bluetooth-icon-is-missing-from-one-ui-7-status-bar/)). So Budi draws its own: a window the size of a status bar icon, just right of the camera, under the status bar, which shows it through. It hides whenever the status bar does. The glyphs are traced from Samsung's `ic_buds3_*` and drawn on the 24 dp status bar icon grid.
+- **Its colour.** Android copies each app's status bar request (light or dark icons) into its task description. The follower watches which task is on top and turns Budi's icon dark or light to match the status bar's own icons.
+- **No notification.** Android posts "Budi is displaying over other apps" while the icon shows. The follower turns that notice off for Budi alone, as you could from the shade.
+- **Shizuku.** Reading other apps' logs, following the app on top and turning off a system notice all need the shell user, so the follower runs as a [Shizuku](https://shizuku.rikka.app) user service. It drives Budi's icon over a binder, and wakes Budi's app with a broadcast only the shell may send.
+- **Background cost.** While the buds are connected the follower sits blocked on a socket. It wakes when the plugin logs, when you switch apps, and at most every 30 s to check the plugin hasn't restarted. Budi's app stays in memory to host the icon, idle. There's no wake lock and no polling.
 
 ## Why not talk to the buds directly
 
@@ -19,7 +21,7 @@ The buds accept one control link at a time. Opening one knocks Samsung's plugin 
 ## Setup
 
 1. Install the APK from [Releases](../../releases) and open Budi.
-2. Allow **Nearby devices**, **Notifications**, **Shizuku** and **Battery**.
+2. Allow **Nearby devices**, **Display over other apps**, **Shizuku** and **Battery**.
 
 You need a Samsung phone with Samsung's buds plugin, which installs when you pair the buds, and Shizuku running. Without root, Shizuku has to be started again after each reboot.
 

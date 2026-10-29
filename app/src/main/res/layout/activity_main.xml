@@ -63,7 +63,7 @@
                 layout="@layout/row" />
 
             <include
-                android:id="@+id/row_notifications"
+                android:id="@+id/row_overlay"
                 layout="@layout/row" />
 
             <include

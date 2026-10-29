@@ -1,7 +1,6 @@
 package io.github.sammeeeeeeee.budi
 
 import android.Manifest.permission.BLUETOOTH_CONNECT
-import android.Manifest.permission.POST_NOTIFICATIONS
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -86,7 +85,7 @@ class MainActivity : Activity() {
 
     /** Starts or stops the follower if Budi missed the buds connecting or disconnecting, and puts the icon right. */
     private fun match(mode: Int?) {
-        mode?.let(NoiseMode::of)?.let { ModeIcon.show(this, it) } ?: ModeIcon.hide(this)
+        mode?.let(NoiseMode::of)?.let { StatusIcon.show(this, it) } ?: StatusIcon.hide()
         if (Buds.samsungPlugins(this).isEmpty()) return
         when (Buds.connected(this)) {
             true -> if (mode == null) BudsService.connected(this)
@@ -128,11 +127,11 @@ class MainActivity : Activity() {
             }
         }
 
-        if (granted(POST_NOTIFICATIONS)) {
-            row(R.id.row_notifications, R.string.row_notifications, R.string.allowed)
+        if (Settings.canDrawOverlays(this)) {
+            row(R.id.row_overlay, R.string.row_overlay, R.string.allowed)
         } else {
-            row(R.id.row_notifications, R.string.row_notifications, R.string.row_notifications_summary, R.string.allow) {
-                requestPermissions(arrayOf(POST_NOTIFICATIONS), 0)
+            row(R.id.row_overlay, R.string.row_overlay, R.string.row_overlay_summary, R.string.allow) {
+                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
             }
         }
 
@@ -168,7 +167,7 @@ class MainActivity : Activity() {
         val about = listOf(
             "Budi ${app.versionName} on ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})",
             "Plugins: ${plugins.ifEmpty { "none" }}",
-            "Notifications: ${if (granted(POST_NOTIFICATIONS)) "allowed" else "not allowed"}",
+            "Display over other apps: ${if (Settings.canDrawOverlays(this)) "allowed" else "not allowed"}",
             "Shizuku: ${if (ready) "v${Shizuku.getVersion()}" else "not ready"}",
             "Buds connected: ${Buds.connected(this) ?: "unknown"}",
             "Follower mode: ${followed ?: "not running"}",
