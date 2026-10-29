@@ -23,7 +23,7 @@ class BudsService : Service() {
         private const val ACTION_CONNECTED = "connected"
         private const val ACTION_DISCONNECTED = "disconnected"
         private const val CHANNEL = "service"
-        private const val TIMEOUT_MS = 15_000L
+        private const val TIMEOUT_MS = 9_000L // under the 10 s before a notification would show
 
         fun connected(context: Context) = launch(context, ACTION_CONNECTED)
 
@@ -72,6 +72,7 @@ class BudsService : Service() {
             return START_NOT_STICKY
         }
         lastStart = startId
+        if (intent?.action == ACTION_DISCONNECTED) ModeIcon.hide(this) // even if Shizuku isn't there to stop the follower
         intent?.action?.let(pending::addLast)
         main.removeCallbacks(giveUp)
         main.postDelayed(giveUp, TIMEOUT_MS)
@@ -87,7 +88,7 @@ class BudsService : Service() {
 
     /** In order, so a quick disconnect then connect leaves the follower running. */
     private fun handle() {
-        val ready = StatusBar.shizukuReady
+        val ready = Follow.ready
         while (pending.isNotEmpty()) {
             val action = pending.removeFirst()
             when {

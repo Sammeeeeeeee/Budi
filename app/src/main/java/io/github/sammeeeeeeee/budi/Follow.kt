@@ -3,6 +3,7 @@ package io.github.sammeeeeeeee.budi
 import android.content.ComponentName
 import android.content.Context
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.os.IBinder
 import android.util.Log
 import rikka.shizuku.Shizuku
@@ -33,24 +34,31 @@ object Follow {
         }
     }
 
+    /** Shizuku is running and has granted Budi access. */
+    val ready: Boolean
+        get() = try {
+            Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        } catch (e: RuntimeException) {
+            false
+        }
+
     /** Follows the plugins' logs and shows the mode in the status bar, starting the follower if needed. */
     fun start(context: Context, plugins: List<String>, done: () -> Unit) {
-        val (iconPackage, icons) = Icons.resolve(context)
-        val labels = NoiseMode.entries.map { context.getString(it.label) }.toTypedArray()
+        val receiver = ComponentName(context, ModeReceiver::class.java).flattenToString()
         val then: (IFollower?) -> Unit = { follower ->
-            call { follower?.follow(plugins.toTypedArray(), iconPackage, icons, labels) }
+            call { follower?.follow(plugins.toTypedArray(), receiver) }
             done()
         }
         waiting += then
         if (shizuku { Shizuku.bindUserService(args(context), connection) } == null && waiting.remove(then)) then(null)
     }
 
-    /** Stops following and removes the icon, including one left behind by a follower that died. */
+    /** Stops following and removes the icon. */
     fun stop(context: Context) {
         follower = null
         answer(null)
-        shizuku { Shizuku.unbindUserService(args(context), null, true) }
-        if (StatusBar.shizukuReady) StatusBar.viaShizuku().hide()
+        if (ready) shizuku { Shizuku.unbindUserService(args(context), null, true) }
+        ModeIcon.hide(context)
     }
 
     /** The mode the follower last saw: null if it isn't running, -1 if it hasn't seen one yet. */

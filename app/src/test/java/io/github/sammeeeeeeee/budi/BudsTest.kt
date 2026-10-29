@@ -2,7 +2,9 @@ package io.github.sammeeeeeeee.budi
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -38,6 +40,25 @@ class BudsTest {
     @Test
     fun decodesNoiseControlsUpdate() {
         assertEquals(NoiseMode.ADAPTIVE, reported("FD 04 00 77 03 AD A1 DD"))
+    }
+
+    @Test
+    fun decodesModesChangedOnTheBuds() {
+        // Captured from a Galaxy Buds3 Pro on One UI 9, switched by touch and hold.
+        assertEquals(NoiseMode.ANC, reported("FD 0B C0 77 01 11 00 00 0F 09 0E 00 C9 BB DD"))
+        assertEquals(NoiseMode.AMBIENT, reported("FD 0B 00 77 02 11 00 00 0F 09 05 00 46 AF DD"))
+        assertEquals(NoiseMode.ADAPTIVE, reported("FD 0B C0 77 03 11 00 00 0F 09 05 00 95 E8 DD"))
+    }
+
+    @Test
+    fun readsTheModeFromACutShortExtendedStatus() {
+        val status = "RECV++ : FD 4A 00 61 0B 00 5D 64 01 00 11 31 00 00 00 00 03 00 01 01 .. .. .. 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 12 34 DD"
+        assertTrue(Buds.cutShort(status))
+        assertEquals(NoiseMode.ADAPTIVE, Buds.reportedInHead(Buds.received(status)!!))
+        // Another long frame, as Samsung's plugin logged it on a Buds3 Pro.
+        val other = "RECV++ : FD 38 80 F2 4C A4 DE 01 00 06 00 A0 08 03 07 02 F8 E1 00 12 .. .. .. 00 00 00 00 00 00 00 02 F1 6C 00 F8 E1 00 00 00 00 C7 03 DD"
+        assertNull(Buds.reportedInHead(Buds.received(other)!!))
+        assertFalse(Buds.cutShort("RECV++ : FD 0B 00 77 03 11 00 00 0F 09 05 00 95 E8 DD"))
     }
 
     @Test

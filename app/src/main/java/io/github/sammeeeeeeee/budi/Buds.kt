@@ -89,6 +89,14 @@ object Buds {
         else -> null
     }?.let { NoiseMode.of(it.toInt()) }
 
+    /** The plugin logs frames longer than about 40 bytes cut short: "FD … .. .. .. … DD". */
+    fun cutShort(message: String) = message.contains("..")
+
+    /** The mode in the head of a cut-short extended status, which holds it before the cut. */
+    fun reportedInHead(head: ByteArray): NoiseMode? = head.getOrNull(16)
+        ?.takeIf { (head[0].toInt() and 0xFF) == SOM && (head[3].toInt() and 0xFF) == MSG_EXTENDED_STATUS }
+        ?.let { NoiseMode.of(it.toInt()) }
+
     /** The noise mode a frame from the plugin sets. */
     fun requested(id: Int, payload: ByteArray): NoiseMode? =
         payload.getOrNull(0)?.takeIf { id == MSG_NOISE_CONTROLS }?.let { NoiseMode.of(it.toInt()) }

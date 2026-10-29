@@ -63,6 +63,10 @@
                 layout="@layout/row" />
 
             <include
+                android:id="@+id/row_notifications"
+                layout="@layout/row" />
+
+            <include
                 android:id="@+id/row_shizuku"
                 layout="@layout/row" />
 

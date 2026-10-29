@@ -16,25 +16,25 @@ import kotlin.system.exitProcess
  * Shizuku user service that runs as the shell user, outside Budi's app process, while the buds
  * are connected. Samsung's plugin logs every frame it exchanges with the buds. This streams those
  * lines straight from logd, filtered by the plugin's pid so it only wakes when the plugin logs,
- * and shows the noise mode in the status bar. Nothing talks to the buds or to Samsung's plugin.
+ * and tells Budi's app each new mode. Nothing talks to the buds or to Samsung's plugin.
  */
 class Follower : IFollower.Stub() {
-    private val statusBar: StatusBar? by lazy { runCatching { StatusBar.direct() }.getOrNull() }
     private val readers = mutableListOf<Reader>()
     private val trace = ArrayDeque<String>()
-    private var iconPackage = ""
-    private var icons = IntArray(0)
-    private var labels = emptyArray<String>()
+    private var receiver = ""
     @Volatile private var mode: NoiseMode? = null
+    private var told: NoiseMode? = null
 
-    override fun follow(plugins: Array<String>, iconPackage: String, icons: IntArray, labels: Array<String>) {
+    init {
+        StatusBar.clear()
+    }
+
+    override fun follow(plugins: Array<String>, receiver: String) {
         synchronized(this) {
             readers.forEach { it.close() }
             readers.clear()
-            this.iconPackage = iconPackage
-            this.icons = icons
-            this.labels = labels
-            mode = null // shown again, with these icons, once the replay finds it
+            this.receiver = receiver
+            told = null // tell the app again once the replay has found the mode
             note("Following ${plugins.joinToString()}")
             plugins.mapTo(readers) { Reader(it).apply { start() } }
         }
@@ -46,7 +46,6 @@ class Follower : IFollower.Stub() {
 
     override fun destroy() {
         synchronized(this) { readers.forEach { it.close() } }
-        statusBar?.hide()
         exitProcess(0)
     }
 
@@ -55,7 +54,25 @@ class Follower : IFollower.Stub() {
         if (new == mode) return
         mode = new
         note("${new.name} from $source", time)
-        statusBar?.show(iconPackage, icons[new.ordinal], labels[new.ordinal])
+    }
+
+    /** Sends the app the mode, if it's new to it. Budi's app shows it as a status bar icon. */
+    @Synchronized
+    private fun tell() {
+        val mode = mode ?: return
+        if (mode == told) return
+        told = mode
+        try {
+            ProcessBuilder(
+                "/system/bin/cmd", "activity", "broadcast", "--user", "current", "-n", receiver,
+                "--receiver-foreground", "--include-stopped-packages", "--ei", ModeReceiver.EXTRA_MODE, mode.wire.toString(),
+            ).redirectErrorStream(true).start().run {
+                inputStream.readBytes()
+                waitFor()
+            }
+        } catch (e: IOException) {
+            note("Couldn't tell the app: $e")
+        }
     }
 
     /** Keeps the latest lines for Budi's report. */
@@ -97,7 +114,7 @@ class Follower : IFollower.Stub() {
                     try {
                         stream(pid)
                     } catch (e: Exception) {
-                        // logd went away, or something unexpected: retry rather than die with the icon up.
+                        // logd went away, or something unexpected: retry rather than die.
                         if (closed) break
                         note("$plugin: $e")
                         sleep(RETRY_MS)
@@ -114,9 +131,18 @@ class Follower : IFollower.Stub() {
                 socket = s
                 if (closed) return
                 s.connect(LocalSocketAddress("logdr", LocalSocketAddress.Namespace.RESERVED))
-                s.soTimeout = CHECK_MS
                 // No tail or start: logd replays the buffer first, which recovers the current mode.
+                // The app hears only the outcome: the replay is over once the log goes quiet or
+                // reaches the present.
+                s.soTimeout = REPLAY_QUIET_MS
                 s.outputStream.write("stream lids=0 pid=$pid".toByteArray())
+                val started = System.currentTimeMillis()
+                var replaying = true
+                val caughtUp = {
+                    replaying = false
+                    s.soTimeout = CHECK_MS
+                    tell()
+                }
                 var time = 0L
                 val fromBuds = Buds.FrameReader { id, payload ->
                     Buds.reported(id, payload)?.let { onMode(it, time, "buds' %02X".format(id)) }
@@ -132,6 +158,10 @@ class Follower : IFollower.Stub() {
                         s.inputStream.read(buf)
                     } catch (e: IOException) {
                         if (closed) return
+                        if (replaying) {
+                            caughtUp()
+                            continue
+                        }
                         if (SystemClock.elapsedRealtime() - since < CHECK_MS / 2) throw e
                         null // a quiet spell
                     }
@@ -145,13 +175,19 @@ class Follower : IFollower.Stub() {
                     if (size <= 0) throw IOException("logd ended the stream")
                     val entry = Logd.entry(buf, size) ?: continue
                     time = entry.time
+                    if (replaying && time >= started) caughtUp()
                     val received = Buds.received(entry.message)
                     val sent = if (received == null) Buds.sent(entry.message) else null
                     if (received != null || sent != null || NOISE.containsMatchIn(entry.message)) {
                         note(entry.message.trim().take(TRACE_WIDTH), time)
                     }
-                    received?.let { fromBuds.feed(it, it.size) }
-                    sent?.let { fromPlugin.feed(it, it.size) }
+                    when {
+                        received != null && Buds.cutShort(entry.message) ->
+                            Buds.reportedInHead(received)?.let { onMode(it, time, "buds' 61") }
+                        received != null -> fromBuds.feed(received, received.size)
+                        sent != null -> fromPlugin.feed(sent, sent.size)
+                    }
+                    if (!replaying) tell()
                 }
             }
         }
@@ -161,6 +197,7 @@ class Follower : IFollower.Stub() {
         const val RETRY_MS = 5_000L
         const val IDLE_MS = 60_000L
         const val QUICK_LOOKS = 12
+        const val REPLAY_QUIET_MS = 500
         const val CHECK_MS = 30_000
         const val TRACE_LINES = 80
         const val TRACE_WIDTH = 240

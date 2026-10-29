@@ -1,6 +1,7 @@
 package io.github.sammeeeeeeee.budi
 
 import android.Manifest.permission.BLUETOOTH_CONNECT
+import android.Manifest.permission.POST_NOTIFICATIONS
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -49,7 +50,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         matched = false
-        ready = StatusBar.shizukuReady
+        ready = Follow.ready
         renderStatus()
         renderRows()
         main.post(poll)
@@ -62,7 +63,7 @@ class MainActivity : Activity() {
 
     /** Asks the follower what it sees, while Budi is on screen. */
     private fun refresh() {
-        if (StatusBar.shizukuReady != ready) {
+        if (Follow.ready != ready) {
             ready = !ready
             renderRows()
         }
@@ -72,7 +73,7 @@ class MainActivity : Activity() {
             show(mode)
             if (!matched) {
                 matched = true
-                match(running = mode != null)
+                match(mode)
             }
         }
     }
@@ -83,12 +84,13 @@ class MainActivity : Activity() {
         renderStatus()
     }
 
-    /** Starts or stops the follower if Budi missed the buds connecting or disconnecting. */
-    private fun match(running: Boolean) {
+    /** Starts or stops the follower if Budi missed the buds connecting or disconnecting, and puts the icon right. */
+    private fun match(mode: Int?) {
+        mode?.let(NoiseMode::of)?.let { ModeIcon.show(this, it) } ?: ModeIcon.hide(this)
         if (Buds.samsungPlugins(this).isEmpty()) return
         when (Buds.connected(this)) {
-            true -> if (!running) BudsService.connected(this)
-            false -> if (running) BudsService.disconnected(this)
+            true -> if (mode == null) BudsService.connected(this)
+            false -> if (mode != null) BudsService.disconnected(this)
             null -> Unit
         }
     }
@@ -98,7 +100,7 @@ class MainActivity : Activity() {
         val plugin = Buds.samsungPlugins(this).isNotEmpty()
 
         val icon = findViewById<ImageView>(R.id.mode_icon)
-        if (mode != null) icon.setImageDrawable(Icons.drawable(this, mode)) else icon.setImageResource(R.drawable.ic_noise_unknown)
+        icon.setImageResource(mode?.icon ?: R.drawable.ic_noise_unknown)
         findViewById<TextView>(R.id.mode_label).setText(
             when {
                 mode != null -> mode.label
@@ -123,6 +125,14 @@ class MainActivity : Activity() {
         } else {
             row(R.id.row_bluetooth, R.string.row_bluetooth, R.string.row_bluetooth_summary, R.string.allow) {
                 requestPermissions(arrayOf(BLUETOOTH_CONNECT), 0)
+            }
+        }
+
+        if (granted(POST_NOTIFICATIONS)) {
+            row(R.id.row_notifications, R.string.row_notifications, R.string.allowed)
+        } else {
+            row(R.id.row_notifications, R.string.row_notifications, R.string.row_notifications_summary, R.string.allow) {
+                requestPermissions(arrayOf(POST_NOTIFICATIONS), 0)
             }
         }
 
@@ -158,7 +168,7 @@ class MainActivity : Activity() {
         val about = listOf(
             "Budi ${app.versionName} on ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})",
             "Plugins: ${plugins.ifEmpty { "none" }}",
-            "Icons: ${Icons.resolve(this).first}",
+            "Notifications: ${if (granted(POST_NOTIFICATIONS)) "allowed" else "not allowed"}",
             "Shizuku: ${if (ready) "v${Shizuku.getVersion()}" else "not ready"}",
             "Buds connected: ${Buds.connected(this) ?: "unknown"}",
             "Follower mode: ${followed ?: "not running"}",

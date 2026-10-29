@@ -10,19 +10,17 @@ android {
         applicationId = "io.github.sammeeeeeeee.budi"
         minSdk = 33
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.2"
+        versionCode = 6
+        versionName = "0.3"
     }
 
     signingConfigs {
-        // CI signs with the repository's own key when it has one, so a new version installs over the old one.
-        System.getenv("BUDI_KEYSTORE")?.let { keystore ->
-            create("release") {
-                storeFile = file(keystore)
-                storePassword = System.getenv("BUDI_KEYSTORE_PASSWORD")
-                keyAlias = "budi"
-                keyPassword = System.getenv("BUDI_KEYSTORE_PASSWORD")
-            }
+        // Committed on purpose: every build signs the same way, so each version installs over the last.
+        create("release") {
+            storeFile = file("budi.jks")
+            storePassword = "budibudi"
+            keyAlias = "budi"
+            keyPassword = "budibudi"
         }
     }
 
@@ -31,7 +29,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

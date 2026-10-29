@@ -1,6 +1,6 @@
 # Budi
 
-Budi adds your Galaxy Buds' noise control mode to the status bar, beside Wi‑Fi and battery. It shows Off, Ambient sound, Adaptive or Active noise canceling, using Samsung's own One UI glyphs. Budi never connects to the buds, so everything Samsung's buds features already do keeps working.
+Budi adds your Galaxy Buds' noise control mode to the status bar: Off, Ambient sound, Adaptive or Active noise canceling, drawn like Samsung's own One UI glyphs. Budi never connects to the buds, so everything Samsung's buds features already do keeps working.
 
 ## How it works
 
@@ -8,8 +8,9 @@ Budi adds your Galaxy Buds' noise control mode to the status bar, beside Wi‑Fi
   - the extended status the buds send on connect;
   - the update after a change made on the buds;
   - a mode set from the phone, and the buds' acknowledgement of it.
-- **The icon.** Set with `IStatusBarService.setIcon`, using the glyphs from Samsung's plugin on the phone. Budi's own lookalikes stand in if those are missing. The call needs `android.permission.STATUS_BAR`, which the shell user holds, so the follower runs as a [Shizuku](https://shizuku.rikka.app) user service.
-- **Background cost.** While the buds are connected there's one small process, blocked on a socket. It wakes when the plugin logs, and at most every 30 s to check the plugin hasn't restarted. There's no wake lock and no notification. Budi's app runs for about a second when the buds connect or disconnect.
+- **The icon.** One UI 7 and later show only Wi‑Fi, mobile data and battery on the right of the closed status bar; other indicators appear only in the pulled-down panel ([Sammy Fans](https://www.sammyfans.com/2025/04/16/samsung-explains-why-bluetooth-icon-is-missing-from-one-ui-7-status-bar/)). So Budi's icon is a notification icon, which One UI shows on the left, by the clock. The notification is silent and ongoing, and goes when the buds disconnect. The glyphs are traced from Samsung's `ic_buds3_*` and drawn on the 24 dp status bar icon grid.
+- **Shizuku.** Reading other apps' logs needs the shell user, so the follower runs as a [Shizuku](https://shizuku.rikka.app) user service. It tells Budi's app each new mode with a broadcast only the shell may send.
+- **Background cost.** While the buds are connected there's one small process, blocked on a socket. It wakes when the plugin logs, and at most every 30 s to check the plugin hasn't restarted. There's no wake lock. Budi's app runs for about a second when the buds connect or disconnect, or the mode changes.
 
 ## Why not talk to the buds directly
 
@@ -18,7 +19,7 @@ The buds accept one control link at a time. Opening one knocks Samsung's plugin 
 ## Setup
 
 1. Install the APK from [Releases](../../releases) and open Budi.
-2. Allow **Nearby devices**, **Shizuku** and **Battery**.
+2. Allow **Nearby devices**, **Notifications**, **Shizuku** and **Battery**.
 
 You need a Samsung phone with Samsung's buds plugin, which installs when you pair the buds, and Shizuku running. Without root, Shizuku has to be started again after each reboot.
 
@@ -26,7 +27,6 @@ If the icon is wrong or missing, tap **Report a problem › Copy** in Budi and s
 
 ## Limits
 
-- Android puts icons set by apps at the far left of the system icons, and hides the leftmost first when the bar is full. AOSP shows at most 7 there; with many icons on (NFC, alarm, Bluetooth and so on), Budi's shows only in the expanded panel. Launchers that hide the status bar hide it too.
 - Budi relies on Samsung's plugin logging the frames it exchanges. A plugin update could change that.
 - It was built for Galaxy Buds3 Pro on One UI 9.
 
@@ -38,4 +38,4 @@ If the icon is wrong or missing, tap **Report a problem › Copy** in Budi and s
 
 Needs JDK 17+ and Android SDK platform 37. Pushing a `v*` tag, or running the Release workflow by hand, builds the APK and publishes it as a GitHub release.
 
-The workflow signs with the repository's `SIGNING_KEY` secret (a base64 keystore holding a key named `budi`) and `SIGNING_PASSWORD`. Without them it uses a throwaway debug key, so each release must be installed fresh, after uninstalling the last.
+Releases are signed with `app/budi.jks`, committed so each version installs over the last. Anyone can sign an APK with that key, so install Budi only from this repository's releases.
