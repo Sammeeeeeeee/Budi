@@ -24,6 +24,8 @@ class MainActivity : Activity() {
     private val onShizuku = Shizuku.OnBinderReceivedListener { render() }
     private val onShizukuPermission = Shizuku.OnRequestPermissionResultListener { _, _ -> render() }
 
+    private var report: Int? = null
+
     private val active
         get() = BudsService.status.link.let { it == Link.CONNECTING || it == Link.CONNECTED }
 
@@ -122,6 +124,31 @@ class MainActivity : Activity() {
             val label = packageManager.getApplicationLabel(packageManager.getApplicationInfo(manager, 0))
             row(R.id.row_manager, getString(R.string.row_manager, label), getText(R.string.row_manager_summary), R.string.open) {
                 startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$manager")))
+            }
+            when {
+                report == R.string.diagnostics_running ->
+                    row(R.id.row_diagnostics, R.string.diagnostics, R.string.diagnostics_running)
+                !StatusIcon.ready -> row(R.id.row_diagnostics, R.string.diagnostics, R.string.diagnostics_needs_shizuku)
+                else -> row(R.id.row_diagnostics, R.string.diagnostics, report ?: R.string.diagnostics_summary, R.string.run) {
+                    runDiagnostics()
+                }
+            }
+        }
+    }
+
+    private fun runDiagnostics() {
+        report = R.string.diagnostics_running
+        render()
+        Diagnostics.run(this) { uri ->
+            report = if (uri == null) R.string.diagnostics_failed else R.string.diagnostics_saved
+            if (isDestroyed) return@run
+            render()
+            if (uri != null) {
+                val send = Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                startActivity(Intent.createChooser(send, null))
             }
         }
     }

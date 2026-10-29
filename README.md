@@ -19,6 +19,16 @@ pm disable-user --user 0 com.samsung.accessory.paranmgr
 pm enable com.samsung.accessory.paranmgr
 ```
 
+**Looking for a way around it.** While the manager is on, Budi offers a **Diagnostic report**, so the manager can stay on in the long run:
+
+1. Switch noise modes on your buds a few times.
+2. Tap **Run**. Budi uses Shizuku to collect what One UI exposes:
+   - Bluetooth metadata changes
+   - settings keys
+   - the manager's components and broadcasts
+   - logs
+3. Budi saves the report as a text file in Downloads, with full Bluetooth addresses replaced by placeholders. Nothing is uploaded.
+
 ## Setup
 
 1. Install the APK and open Budi.

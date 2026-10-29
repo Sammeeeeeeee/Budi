@@ -55,10 +55,16 @@
 
         <LinearLayout
             android:id="@+id/manager_card"
-            style="@style/Card">
+            style="@style/Card"
+            android:divider="@drawable/divider"
+            android:showDividers="middle">
 
             <include
                 android:id="@+id/row_manager"
+                layout="@layout/row" />
+
+            <include
+                android:id="@+id/row_diagnostics"
                 layout="@layout/row" />
         </LinearLayout>
 

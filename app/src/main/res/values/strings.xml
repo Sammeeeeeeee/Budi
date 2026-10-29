@@ -29,11 +29,19 @@
     <string name="row_manager">%1$s is on</string>
     <string name="row_manager_summary">It holds your buds\' control channel, so Budi can\'t read them. Turn it off to use Budi.</string>
 
+    <string name="diagnostics">Diagnostic report</string>
+    <string name="diagnostics_summary">Switch noise modes on your buds a few times, then run this. It saves a text file to Downloads and uploads nothing.</string>
+    <string name="diagnostics_needs_shizuku">Needs Shizuku.</string>
+    <string name="diagnostics_running">Collecting. This takes a few seconds.</string>
+    <string name="diagnostics_saved">Saved to Downloads.</string>
+    <string name="diagnostics_failed">Couldn\'t collect the report.</string>
+
     <string name="allow">Allow</string>
     <string name="allowed">Allowed</string>
     <string name="unrestricted">Unrestricted</string>
     <string name="open">Open</string>
     <string name="get">Get</string>
+    <string name="run">Run</string>
 
     <string name="channel_status">Noise control</string>
     <string name="channel_status_description">Shows the noise control mode when the status bar icon isn\'t available.</string>
