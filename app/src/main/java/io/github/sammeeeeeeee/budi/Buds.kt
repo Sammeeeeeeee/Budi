@@ -20,6 +20,7 @@ object Buds {
 
     /** Samsung's companion plugins. While one is enabled it owns the buds' control channel. */
     private val SAMSUNG_MANAGERS = listOf(
+        "com.samsung.accessory.budsunitemgr", // Buds4 and newer
         "com.samsung.accessory.paranmgr", // Buds3 Pro
         "com.samsung.accessory.jellymgr", // Buds3
         "com.samsung.accessory.zenithmgr",

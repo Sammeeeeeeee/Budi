@@ -9,6 +9,8 @@
 
     <queries>
         <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="com.android.systemui" />
+        <package android:name="com.samsung.accessory.budsunitemgr" />
         <package android:name="com.samsung.accessory.paranmgr" />
         <package android:name="com.samsung.accessory.jellymgr" />
         <package android:name="com.samsung.accessory.zenithmgr" />

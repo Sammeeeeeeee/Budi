@@ -10,24 +10,22 @@ Shows your Galaxy Buds' noise control mode as a status bar icon beside Wi‑Fi a
 
 ## Samsung's manager
 
-Android allows one connection per RFCOMM channel per device. Samsung's **Galaxy Buds3 Pro Manager** (`com.samsung.accessory.paranmgr`) holds that channel while it's enabled. So Budi can only read the buds while the manager is off. While it's off, One UI's buds settings, quick panel controls and firmware updates won't work. If the manager is on, Budi detects it and doesn't try to take the channel.
+Samsung's plugin holds the same RFCOMM channel while it's enabled. On Buds3 Pro the plugin is **Galaxy Buds3 Pro Manager** (`com.samsung.accessory.paranmgr`), and on Buds4 and newer it's **Galaxy Buds** (`com.samsung.accessory.budsunitemgr`). Only one app's link can be open at a time. [Headphone Bridge's Android spike](https://github.com/matthewbpt/headphone-bridge/blob/main/docs/spikes/android-rfcomm.md) measured what happens on a real phone: each new connection attempt knocks off whoever holds the link, and Samsung's plugin retries 3 times about 3 s apart, then gives up. The other Android Buds apps on GitHub ([BudBuddy](https://github.com/BenEgeDeniz/BudBuddy), GalaxyBudsClient's Android port) replace Samsung's app rather than run alongside it.
 
-To try Budi, turn the manager off from a Shizuku shell or adb, and turn it back on the same way:
+Budi therefore doesn't connect while one of these plugins is enabled. To use Budi's direct link anyway, turn the plugin off from a Shizuku shell or adb, and turn it back on the same way. While it's off, One UI's buds settings, quick panel controls and firmware updates don't work.
 
 ```
 pm disable-user --user 0 com.samsung.accessory.paranmgr
 pm enable com.samsung.accessory.paranmgr
 ```
 
-**Looking for a way around it.** While the manager is on, Budi offers a **Diagnostic report**, so the manager can stay on in the long run:
+**Looking for a way around it.** While the plugin is on, Budi offers a **Diagnostic report**. Tap Run, then switch noise modes a few times while it records for about half a minute. It produces:
 
-1. Switch noise modes on your buds a few times.
-2. Tap **Run**. Budi uses Shizuku to collect what One UI exposes:
-   - Bluetooth metadata changes
-   - settings keys
-   - the manager's components and broadcasts
-   - logs
-3. Budi saves the report as a text file in Downloads, with full Bluetooth addresses replaced by placeholders. Nothing is uploaded.
+- a text report from the shell user, covering the Bluetooth metadata change log, settings keys, the plugin's components, broadcasts and logs;
+- a recording of Samsung's buds widget, hosted off-screen, to see whether it mirrors the mode, which Budi could follow without the link;
+- contact sheets of Samsung's own icons from the phone, so Budi can use the exact One UI glyphs.
+
+Everything is saved to Downloads, with full Bluetooth addresses replaced by placeholders. Nothing is uploaded.
 
 ## Setup
 

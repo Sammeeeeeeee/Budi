@@ -130,23 +130,23 @@ class MainActivity : Activity() {
                     row(R.id.row_diagnostics, R.string.diagnostics, R.string.diagnostics_running)
                 !StatusIcon.ready -> row(R.id.row_diagnostics, R.string.diagnostics, R.string.diagnostics_needs_shizuku)
                 else -> row(R.id.row_diagnostics, R.string.diagnostics, report ?: R.string.diagnostics_summary, R.string.run) {
-                    runDiagnostics()
+                    runDiagnostics(manager)
                 }
             }
         }
     }
 
-    private fun runDiagnostics() {
+    private fun runDiagnostics(manager: String) {
         report = R.string.diagnostics_running
         render()
-        Diagnostics.run(this) { uri ->
-            report = if (uri == null) R.string.diagnostics_failed else R.string.diagnostics_saved
+        Diagnostics.run(this, manager) { files ->
+            report = if (files.isEmpty()) R.string.diagnostics_failed else R.string.diagnostics_saved
             if (isDestroyed) return@run
             render()
-            if (uri != null) {
-                val send = Intent(Intent.ACTION_SEND)
-                    .setType("text/plain")
-                    .putExtra(Intent.EXTRA_STREAM, uri)
+            if (files.isNotEmpty()) {
+                val send = Intent(Intent.ACTION_SEND_MULTIPLE)
+                    .setType("*/*")
+                    .putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(files))
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 startActivity(Intent.createChooser(send, null))
             }

@@ -1,6 +1,5 @@
 # Runs as the shell user via Shizuku. Looks for anything outside the RFCOMM channel that
-# reflects the noise control mode while Samsung's manager owns the buds.
-P=com.samsung.accessory.paranmgr
+# reflects the noise control mode while Samsung's manager owns the buds. Budi sets P first.
 K='buds|paran|earbud|noise.?control|ambient.?sound|(^|[^a-z])anc([^a-z]|$)'
 s() { printf '\n===== %s\n' "$1"; }
 
