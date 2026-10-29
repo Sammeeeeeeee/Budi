@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="page">#000000</color>
+    <color name="card">#171717</color>
+    <color name="divider">#1FFFFFFF</color>
+    <bool name="light_bars">false</bool>
+</resources>

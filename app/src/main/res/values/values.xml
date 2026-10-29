@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="page">#F2F2F2</color>
+    <color name="card">#FCFCFC</color>
+    <color name="divider">#14000000</color>
+    <color name="launcher_background">#3E91FF</color>
+    <bool name="light_bars">true</bool>
+</resources>
